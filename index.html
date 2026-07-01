@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>教务数据库管理系统 </title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', system-ui, sans-serif; }
+        body { background:#f4f7fa; height:100vh; overflow:hidden; }
+        
+        /* 登录界面样式 */
+        #loginView { display:flex; align-items:center; justify-content:center; height:100vh; background:#1e293b; }
+        .login-box { background:white; padding:40px; border-radius:12px; width:360px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
+        .login-box input { width:100%; padding:12px; margin-bottom:15px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:14px; }
+        
+        /* 全屏布局 */
+        #mainApp { display:none; width:100vw; height:100vh; }
+        
+        /* 侧边栏 */
+        .sidebar { width:240px; background:#1e293b; color:white; display:flex; flex-direction:column; flex-shrink:0; }
+        .sidebar h2 { text-align:center; padding:25px 0; background:#0f172a; font-size:1.2rem; border-bottom:1px solid #334155; }
+        .nav-menu { flex:1; overflow-y:auto; }
+        .nav-item { padding:16px 25px; cursor:pointer; font-size:14px; border-left:4px solid transparent; transition:0.2s; }
+        .nav-item:hover, .nav-item.active { background:#334155; border-left-color:#38bdf8; color:#38bdf8; }
+        
+        /* 退出登录按钮 */
+        .logout-btn { padding:15px; text-align:center; background:#0f172a; cursor:pointer; color:#94a3b8; font-size:14px; transition:0.2s; }
+        .logout-btn:hover { color:#ef4444; background:#1e293b; }
+
+        /* 主体布局 */
+        .main { flex:1; padding:25px; display:flex; flex-direction:column; overflow:hidden; }
+        .card { background:white; padding:25px; border-radius:10px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05); flex:1; display:flex; flex-direction:column; overflow:hidden; }
+        .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+        
+        /* 表格 横向滚动 */
+        .table-wrap { flex:1; overflow:auto; border:1px solid #e2e8f0; border-radius:8px; }
+        table { width:100%; border-collapse:collapse; min-width:max-content; }
+        th { position:sticky; top:0; background:#f8fafc; padding:14px 18px; text-align:left; border-bottom:2px solid #e2e8f0; font-size:13px; color:#64748b; z-index:10; white-space:nowrap; }
+        td { padding:14px 18px; border-bottom:1px solid #f1f5f9; font-size:13px; color:#334155; white-space:nowrap; }
+        
+        .long-text { max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+        .long-text:hover { overflow:visible; white-space:normal; background:white; box-shadow:0 2px 8px rgba(0,0,0,0.1); position:absolute; z-index:99; border-radius:4px; padding:8px; margin-top:-8px; max-width:400px; }
+
+        /* 按钮 */
+        .btn { padding:8px 16px; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:500; transition:0.2s; }
+        .btn-add { background:#0ea5e9; color:white; }
+        .btn-add:hover { background:#0284c7; }
+        .btn-edit { background:#f1f5f9; color:#475569; margin-right:5px; }
+        .btn-del { background:#fee2e2; color:#ef4444; }
+
+        /* 统计看板 */
+        .stats-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; margin-bottom:30px; }
+        .stat-box { background:linear-gradient(135deg, #e0f2fe, #bae6fd); padding:25px; border-radius:12px; text-align:center; }
+        .stat-box h3 { color:#0369a1; font-size:2rem; margin-bottom:5px; }
+        .stat-box p { color:#0284c7; font-size:14px; font-weight:bold; }
+
+        /* 弹窗 */
+        .modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:100; }
+        .modal-content { background:white; padding:30px; border-radius:12px; width:700px; max-height:85vh; overflow-y:auto; }
+        .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
+        .form-item { display:flex; flex-direction:column; }
+        .form-item.full { grid-column:span 2; }
+        .form-item label { font-size:12px; color:#64748b; margin-bottom:5px; }
+        .form-item input, .form-item select, .form-item textarea { padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; }
+    </style>
+</head>
+<body>
+
+<div id="loginView">
+    <div class="login-box" id="loginCard">
+        <h2 style="margin-bottom: 25px; color:#0f172a;">高校教务系统门户</h2>
+        <form onsubmit="handleLogin(event)">
+            <input type="text" id="loginUser" autocomplete="username" placeholder="请输入账号 / 工号 / 学号" required>
+            <input type="password" id="loginPass" autocomplete="current-password" placeholder="请输入密码" required>
+            <button type="submit" class="btn btn-add" style="width: 100%; font-size:15px; padding:12px;">登录</button>
+        </form>
+        <p id="errorMsg" style="color: #ef4444; font-size: 13px; margin-top: 15px; min-height: 20px;"></p>
+        <div style="margin-top: 15px; font-size: 13px;">
+            <a href="javascript:void(0)" onclick="toggleLoginRegister(true)" style="color: #0ea5e9; text-decoration: none;">没有账号？立即注册</a>
+        </div>
+    </div>
+
+    <div class="login-box" id="registerCard" style="display: none;">
+        <h2 style="margin-bottom: 25px; color:#0f172a;">新用户注册</h2>
+        <form onsubmit="handleRegister(event)">
+            <select id="regRole" style="width:100%; padding:12px; margin-bottom:15px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:14px;">
+                <option value="student">我是学生 </option>
+                <option value="teacher">我是教师 </option>
+            </select>
+            <input type="text" id="regId" placeholder="请输入您的 学号 或 工号" required>
+            <input type="text" id="regName" placeholder="请输入您的 真实姓名" required>
+            <input type="password" id="regPass" placeholder="请设置登录密码" required>
+            <button type="submit" class="btn" style="width: 100%; font-size:15px; padding:12px; background: #10b981; color: white;">提交注册</button>
+        </form>
+        <p id="regErrorMsg" style="color: #ef4444; font-size: 13px; margin-top: 15px; min-height: 20px;"></p>
+        <div style="margin-top: 15px; font-size: 13px;">
+            <a href="javascript:void(0)" onclick="toggleLoginRegister(false)" style="color: #0ea5e9; text-decoration: none;">已有账号？返回登录</a>
+        </div>
+    </div>
+</div>
+
+<div id="mainApp">
+    <div class="sidebar">
+        <h2 id="systemTitle"> 高校教务系统</h2>
+        <div class="nav-menu" id="menuBox"></div>
+        <div class="logout-btn" onclick="logout()"> 退出登录</div>
+    </div>
+
+    <div class="main">
+        <div class="card" id="app"></div>
+    </div>
+</div>
+
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle" style="margin-bottom:20px; color:#0f172a;"></h3>
+        <div id="formBody" class="form-grid"></div>
+        
+        <p id="modalErrorMsg" style="color: #ef4444; font-size: 13px; margin-top: 15px; min-height: 20px; font-weight: 500;"></p>
+        
+        <div style="margin-top:25px; text-align:right;">
+            <button class="btn" style="background:#e2e8f0; color:#475569; margin-right:10px;" onclick="closeModal()">取消</button>
+            <button class="btn btn-add" id="saveBtn">确认保存</button>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const API = 'http://localhost:3000/api';
+    let currentTab = 'department';
+    let db = {};
+    let formAction = 'ADD';
+    let editId = null;
+
+    // 视图字段配置表 
+    const viewConfig = {
+        department: { n:'院系', cols:['代码','名称','办公地点','电话'], ks:['code','name','location','phone'], idKey:'code' },
+        major: { n:'专业', cols:['专业名称','所属院系'], ks:['name','dept_name'], idKey:'id' },
+        course: { n:'课程', cols:['编号','名称','学时','学分','学位等级','开课院系','课程说明'], ks:['id','name','credit_hours','credits','level_name','dept_name','description'], idKey:'id' },
+        teacher: { n:'教师', cols:['工号','姓名','所属院系'], ks:['id','name','dept_name'], idKey:'id' },
+        student: { n:'学生', cols:['学号','姓名','身份证','性别','出生日期','年级','主修专业','主修院系','辅修院系','学位','已修学分','宿舍','电话','家庭地址'], 
+                   ks:['id','name','id_card','gender','birth_date','grade_year','major_name','main_dept_name','minor_dept_name','level_name','earned_credits','dormitory','phone','home_address'], idKey:'id' },
+        grade: { n:'成绩', cols:['学生姓名','课程名称','分数','学期'], ks:['s_name','c_name','score','semester'], idKey:'id' },
+        teacher_course: { n:'排课信息', cols:['教师姓名','授课课程'], ks:['teacher_name','course_name'], idKey:'id' },
+        
+        // 老师学生专属视图
+        my_profile: { n:'我的基本信息', cols:['学号','姓名','身份证','性别','出生日期','年级','主修专业','院系','已修学分','宿舍','电话','家庭地址'], ks:['id','name','id_card','gender','birth_date','grade_year','major_name','main_dept_name','earned_credits','dormitory','phone','home_address'], idKey:'id' },
+        my_grade: { n:'我的成绩单', cols:['学期','课程名称','学分','分数'], ks:['semester','c_name','credits','score'], idKey:'id' },
+        my_course: { n:'我教的课程', cols:['课程编号','课程名称','学分','学时'], ks:['course_id','course_name','credits','credit_hours'], idKey:'id' },
+        my_students_grade: { n:'学生成绩评定', cols:['学号','学生姓名','课程编号','课程名称','分数','学期'], ks:['student_id','s_name','course_id','c_name','score','semester'], idKey:'id' }
+    };
+
+    // 加载器与管理员
+
+    async function loadData() {
+        const role = localStorage.getItem('userRole');
+        
+        if (role === 'admin') {
+            const tabs = ['department', 'degree', 'major', 'teacher', 'course', 'student', 'grade', 'teacher_course', 'stats'];
+            for(let t of tabs) {
+                try {
+                    const res = await fetch(`${API}/${t}`);
+                    if (res.ok) db[t] = (await res.json()).data || [];
+                } catch(e) { console.error("数据加载失败:", t) }
+            }
+        } else {
+            await loadNewRoleData();
+            return;
+        }
+        render();
+    }
+    function render() {
+        const app = document.getElementById('app');
+        const role = localStorage.getItem('userRole');
+
+    if (currentTab === 'stats') {
+        const s = db.stats || { studentCount:0, courseCount:0 };
+        fetch(`${API}/stats/detail`).then(r => r.json()).then(res => {
+            const d = res.data;
+            app.innerHTML = `
+                <div class="toolbar"><h2 style="color:#0f172a;">系统统计看板</h2></div>
+                <div class="stats-grid" style="grid-template-columns:repeat(4, 1fr);">
+                    <div class="stat-box"><h3>${s.studentCount}</h3><p>在校学生</p></div>
+                    <div class="stat-box"><h3>${s.courseCount}</h3><p>开设课程</p></div>
+                    <div class="stat-box"><h3>${(db.department||[]).length}</h3><p>院系总计</p></div>
+                    <div class="stat-box"><h3>${(db.teacher||[]).length}</h3><p>在职教师</p></div>
+                </div>
+                <div style="display:flex; gap:20px; height:300px;">
+                    <canvas id="studentChart"></canvas>
+                    <canvas id="courseChart"></canvas>
+                </div>`;   
+            renderCharts(d.studentData, d.courseData);
+        });
+        return;
+    }
+
+    // 渲染图表函数
+    function renderCharts(sData, cData) {
+        new Chart(document.getElementById('studentChart'), {
+            type: 'pie',
+            data: { labels: sData.map(i=>i.dept_name), datasets: [{ data: sData.map(i=>i.count), backgroundColor: ['#0ea5e9', '#38bdf8', '#bae6fd'] }] },
+            options: { plugins: { title: { display:true, text:'各院系学生分布' } } }
+        });
+        new Chart(document.getElementById('courseChart'), {
+            type: 'pie',
+            data: { labels: cData.map(i=>i.dept_name), datasets: [{ data: cData.map(i=>i.count), backgroundColor: ['#f472b6', '#fb7185', '#fda4af'] }] },
+            options: { plugins: { title: { display:true, text:'各院系课程分布' } } }
+        });
+    }
+
+        const cfg = viewConfig[currentTab];
+
+        // 生成搜索框 HTML
+        let searchInput = '';
+        if (currentTab !== 'stats') {
+        
+            let placeholderText = `在${cfg.n}中搜索...`;
+            searchInput = `<input type="text" id="tableSearch" oninput="doTableSearch()" placeholder="${placeholderText}" 
+                style="width: 250px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; outline: none;">`;
+        }
+
+        let showAddBtn = (role === 'admin') ? `<button class="btn btn-add" onclick="openModal('ADD')">+ 新增${cfg.n}</button>` : '';
+
+        // 组装工具栏：把搜索框塞进左侧或中间
+        let html = `
+            <div class="toolbar">
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <h2 style="color:#0f172a; margin-bottom:0;">${cfg.n}</h2>
+                    ${searchInput}
+                </div>
+                ${showAddBtn}
+            </div>`;
+        let hasActionCol = (role === 'admin' || currentTab === 'my_students_grade');
+        html += `<div class="table-wrap"><table><tr>${cfg.cols.map(c=>`<th>${c}</th>`).join('')}${hasActionCol ? '<th>操作</th>' : ''}</tr>`;
+        
+        (db[currentTab] || []).forEach(row => {
+            html += `<tr>${cfg.ks.map(k=>`<td><div class="${(k==='description'||k==='home_address')?'long-text':''}">${row[k] || (row[k]===0?'0':'-')}</div></td>`).join('')}`;
+            
+            if (hasActionCol) {
+                if (role === 'admin') {
+                    html += `<td>
+                        ${currentTab !== 'teacher_course' ? `<button class="btn btn-edit" onclick="openModal('EDIT', '${row[cfg.idKey]}')">修改</button>` : ''}
+                        <button class="btn btn-del" onclick="del('${row[cfg.idKey]}')">删除</button>
+                    </td>`;
+                } else if (role === 'teacher' && currentTab === 'my_students_grade') {
+                    html += `<td>
+                        <button class="btn btn-edit" onclick="openModal('EDIT', '${row[cfg.idKey]}')">登分/修改</button>
+                    </td>`;
+                }
+            }
+            html += `</tr>`;
+        });
+        app.innerHTML = html + `</table></div>`;
+    }
+
+    // 为必填主键增加红星
+    async function openModal(action, id = null) {
+        formAction = action; editId = id;
+        const role = localStorage.getItem('userRole');
+        
+        // 每次打开弹窗时，自动清空上一轮残留的报错信息
+        const errorMsgEl = document.getElementById('modalErrorMsg');
+        if (errorMsgEl) errorMsgEl.innerText = "";
+        
+        document.getElementById('modalTitle').innerText = (action === 'ADD' ? '新增' : '修改') + viewConfig[currentTab].n;
+        
+        let row = action === 'EDIT' ? db[currentTab].find(r => r[viewConfig[currentTab].idKey] == id) : {};
+        const v = (key) => row[key] !== undefined ? row[key] : '';
+
+        // 老师专属：登记成绩
+        if (role === 'teacher' && currentTab === 'my_students_grade') {
+            document.getElementById('formBody').innerHTML = `
+                <div class="form-item"><label>学生姓名</label><input value="${row.s_name || ''}" disabled></div>
+                <div class="form-item"><label>学号</label><input value="${row.student_id || ''}" disabled></div>
+                <div class="form-item"><label>课程名称</label><input value="${row.c_name || ''}" disabled></div>
+                <div class="form-item"><label>课程编号</label><input value="${row.course_id || ''}" disabled></div>
+                <div class="form-item"><label>考试分数 (0-100)</label><input type="number" id="f_score" value="${row.score !== undefined ? row.score : ''}" step="0.01" min="0" max="100"></div>
+                <div class="form-item"><label>学期</label><input id="f_sem" value="${row.semester || ''}"></div>
+            `;
+            document.getElementById('modal').style.display = 'flex';
+            document.getElementById('saveBtn').onclick = () => submitData();
+            return;
+        }
+
+
+        // 管理员各表单渲染逻辑
+        const deptOps = (db.department||[]).map(d=>`<option value="${d.code}">${d.name}</option>`).join('');
+        const majorOps = (db.major||[]).map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+        const courseOps = (db.course||[]).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+        const teacherOps = (db.teacher||[]).map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+        const studentOps = (db.student||[]).map(s=>`<option value="${s.id}">${s.name} (${s.id})</option>`).join('');
+        const degreeOps = (db.degree||[]).map(dl=>`<option value="${dl.id}">${dl.name}</option>`).join('');
+        const pkStar = action === 'ADD' ? '<span style="color:#ef4444; margin-left:4px; font-weight:bold;" title="创建时此项不可为空">*</span>' : '';
+
+        let html = '';
+        if(currentTab === 'department') {
+            html = `<div class="form-item"><label>代码${pkStar}</label><input id="f_code" value="${v('code')}" ${action==='EDIT'?'disabled':''}></div><div class="form-item"><label>名称</label><input id="f_name" value="${v('name')}"></div><div class="form-item"><label>办公地点</label><input id="f_location" value="${v('location')}"></div><div class="form-item"><label>电话</label><input id="f_phone" value="${v('phone')}"></div>`;
+        } else if(currentTab === 'major') {
+            // 专业的主键是自增的，无需手动录入
+            html = `<div class="form-item"><label>专业名称</label><input id="f_name" value="${v('name')}"></div><div class="form-item"><label>所属院系</label><select id="f_dept_code">${deptOps}</select></div>`;
+        } else if(currentTab === 'student') {
+            html = `<div class="form-item"><label>学号${pkStar}</label><input id="f_id" value="${v('id')}" ${action==='EDIT'?'disabled':''}></div><div class="form-item"><label>姓名</label><input id="f_name" value="${v('name')}"></div><div class="form-item"><label>身份证号</label><input id="f_ic" value="${v('id_card')}"></div><div class="form-item"><label>性别</label><select id="f_gender"><option value="M">男</option><option value="F">女</option></select></div><div class="form-item"><label>主修专业</label><select id="f_major">${majorOps}</select></div><div class="form-item"><label>辅修院系</label><select id="f_minor"><option value="">(无辅修)</option>${deptOps}</select></div><div class="form-item"><label>出生日期</label><input type="date" id="f_bd" value="${v('birth_date')}"></div><div class="form-item"><label>年级</label><input type="number" id="f_gy" value="${v('grade_year')}"></div><div class="form-item"><label>学位等级</label><select id="f_dlid">${degreeOps}</select></div><div class="form-item"><label>已修学分</label><input type="number" id="f_ec" value="${v('earned_credits')}"></div><div class="form-item"><label>宿舍</label><input id="f_dorm" value="${v('dormitory')}"></div><div class="form-item"><label>电话</label><input id="f_ph" value="${v('phone')}"></div><div class="form-item full"><label>家庭地址</label><input id="f_addr" value="${v('home_address')}"></div>`;
+        } else if(currentTab === 'course') {
+            html = `<div class="form-item"><label>课程编号${pkStar}</label><input id="f_id" value="${v('id')}" ${action==='EDIT'?'disabled':''}></div><div class="form-item"><label>课程名称</label><input id="f_name" value="${v('name')}"></div><div class="form-item"><label>学时</label><input type="number" id="f_ch" value="${v('credit_hours')}"></div><div class="form-item"><label>学分</label><input type="number" id="f_c" value="${v('credits')}"></div><div class="form-item"><label>学位等级</label><select id="f_dlid">${degreeOps}</select></div><div class="form-item"><label>开课院系</label><select id="f_dept">${deptOps}</select></div><div class="form-item full"><label>课程说明</label><input id="f_desc" value="${v('description')}"></div>`;
+        } else if(currentTab === 'teacher') {
+            html = `<div class="form-item"><label>工号${pkStar}</label><input id="f_id" value="${v('id')}" ${action==='EDIT'?'disabled':''}></div><div class="form-item"><label>姓名</label><input id="f_name" value="${v('name')}"></div><div class="form-item full"><label>所属院系</label><select id="f_dept">${deptOps}</select></div>`;
+        } else if(currentTab === 'grade') {
+            html = `<div class="form-item"><label>选择学生</label><select id="f_sid" ${action==='EDIT'?'disabled':''}>${studentOps}</select></div><div class="form-item"><label>选择课程</label><select id="f_cid" ${action==='EDIT'?'disabled':''}>${courseOps}</select></div><div class="form-item"><label>分数</label><input type="number" id="f_score" value="${v('score')}"></div><div class="form-item"><label>学期</label><input id="f_sem" value="${v('semester')}" placeholder="例: 2026春"></div>`;
+        } else if(currentTab === 'teacher_course') {
+            html = `<div class="form-item"><label>选择教师</label><select id="f_tid">${teacherOps}</select></div><div class="form-item"><label>分配课程</label><select id="f_cid">${courseOps}</select></div>`;
+        }
+
+        document.getElementById('formBody').innerHTML = html;
+        
+        if (action === 'EDIT') {
+            setTimeout(() => {
+                if(document.getElementById('f_dept_code')) document.getElementById('f_dept_code').value = row.dept_code;
+                if(document.getElementById('f_gender')) document.getElementById('f_gender').value = row.gender;
+                if(document.getElementById('f_major')) document.getElementById('f_major').value = row.major_id;
+                if(document.getElementById('f_minor')) document.getElementById('f_minor').value = row.minor_dept_code || '';
+                if(document.getElementById('f_dlid')) document.getElementById('f_dlid').value = row.degree_level_id;
+                if(document.getElementById('f_dept')) document.getElementById('f_dept').value = row.dept_code;
+                if(document.getElementById('f_sid')) document.getElementById('f_sid').value = row.student_id;
+                if(document.getElementById('f_cid')) document.getElementById('f_cid').value = row.course_id;
+            }, 10);
+        }
+
+        document.getElementById('modal').style.display = 'flex';
+        document.getElementById('saveBtn').onclick = () => submitData();
+    }
+
+    // try-catch 拦截报错
+    async function submitData() {
+        const role = localStorage.getItem('userRole');
+        const getV = (id) => document.getElementById(id) ? document.getElementById(id).value : null;
+        const errorMsgEl = document.getElementById('modalErrorMsg');
+        if (errorMsgEl) errorMsgEl.innerText = "";
+
+        // 老师登记成绩逻辑 
+        if (role === 'teacher' && currentTab === 'my_students_grade') {
+            const scoreVal = parseFloat(getV('f_score'));
+            if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > 100) {
+                if (errorMsgEl) errorMsgEl.innerText = "填写错误：分数必须在 0 到 100 之间"; 
+                return;
+            }
+            const row = db[currentTab].find(r => r.id == editId);
+            const payload = { 
+                id: editId, student_id: row.student_id, course_id: row.course_id, 
+                score: scoreVal, semester: getV('f_sem') 
+            };
+            
+            try {
+                const response = await fetch(`${API}/action/grade`, { 
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, 
+                    body: JSON.stringify({ action: 'EDIT', data: payload }) 
+                });
+                const result = await response.json();
+                if(response.status === 200) { 
+                    closeModal(); loadData(); 
+                } else { 
+                    if (errorMsgEl) errorMsgEl.innerText = result.message || "保存失败，请检查输入"; 
+                }
+            } catch (error) {
+                if (errorMsgEl) errorMsgEl.innerText = "网络异常：请检查后端服务是否启动。";
+            }
+            return;
+        }
+
+        // 管理员提交
+        let payload = {};
+        if(currentTab === 'department') payload = { code: getV('f_code'), name: getV('f_name'), location: getV('f_location'), phone: getV('f_phone') };
+        else if(currentTab === 'major') payload = { id: editId, name: getV('f_name'), dept_code: getV('f_dept_code') };
+        else if(currentTab === 'student') payload = { id: getV('f_id'), name: getV('f_name'), id_card: getV('f_ic'), gender: getV('f_gender'), major_id: getV('f_major'), minor_dept_code: getV('f_minor'), birth_date: getV('f_bd'), grade_year: getV('f_gy'), degree_level_id: getV('f_dlid'), earned_credits: getV('f_ec'), dormitory: getV('f_dorm'), phone: getV('f_ph'), home_address: getV('f_addr') };
+        else if(currentTab === 'course') payload = { id: getV('f_id'), name: getV('f_name'), description: getV('f_desc'), credit_hours: getV('f_ch'), credits: getV('f_c'), degree_level_id: getV('f_dlid'), dept_code: getV('f_dept') };
+        else if(currentTab === 'teacher') payload = { id: getV('f_id'), name: getV('f_name'), dept_code: getV('f_dept') };
+        else if(currentTab === 'grade') payload = { id: editId, student_id: getV('f_sid'), course_id: getV('f_cid'), score: getV('f_score'), semester: getV('f_sem') };
+        else if(currentTab === 'teacher_course') payload = { teacher_id: getV('f_tid'), course_id: getV('f_cid') };
+
+        // 前置拦截
+        if (formAction === 'ADD' && (currentTab === 'department' || currentTab === 'student' || currentTab === 'course' || currentTab === 'teacher')) {
+            let primaryKeyVal = currentTab === 'department' ? payload.code : payload.id;
+            if (!primaryKeyVal || primaryKeyVal.trim() === '') {
+                 if (errorMsgEl) errorMsgEl.innerText = "数据验证失败：带 * 标识的主键编号不可为空！";
+                 return;
+            }
+        }
+
+        try {
+            const response = await fetch(`${API}/action/${currentTab}`, { 
+                method: 'POST', headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ action: formAction, data: payload }) 
+            });
+            const result = await response.json();
+
+            // 检测返回状态
+            if (response.status === 200) {
+                closeModal(); 
+                loadData();
+            } else {
+                if (errorMsgEl) errorMsgEl.innerText = result.message || "后端保存失败，请检查输入格式或是否学号/编号已存在。";
+            }
+        } catch (error) {
+             if (errorMsgEl) errorMsgEl.innerText = "连接后端服务失败，请确认控制台 node server.js 是否仍在运行。";
+        }
+    }
+
+    async function del(id) {
+        if(confirm('警告：此操作不可逆，确定删除该记录吗？')) {
+            await fetch(`${API}/${currentTab}/${id}`, { method:'DELETE' });
+            loadData();
+        }
+    }
+
+    function switchTab(tab, el) {
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        currentTab = tab; 
+        const searchInput = document.getElementById('tableSearch');
+        if (searchInput) searchInput.value = '';
+        loadData();
+    }
+
+    function closeModal() { document.getElementById('modal').style.display = 'none'; }
+
+
+
+    // 复合认证
+    // 1. 登录接口
+    async function handleLogin(event) {
+        event.preventDefault(); 
+        const u = document.getElementById('loginUser').value;
+        const p = document.getElementById('loginPass').value;
+        const errObj = document.getElementById('errorMsg');
+        
+        try {
+            const res = await fetch(`${API}/multi-login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const resData = await res.json();
+
+            if (res.status === 200) {
+                errObj.innerText = "";
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('userRole', resData.data.role); 
+                localStorage.setItem('userId', resData.data.userId);     
+                checkAuth(); 
+            } else {
+                errObj.innerText = "账号或密码错误，请重试！";
+            }
+        } catch (error) {
+            errObj.innerText = "无法连接到服务器，请检查后端是否运行。";
+        }
+    }
+    // 💡 新增：切换登录卡片和注册卡片
+function toggleLoginRegister(showRegister) {
+    document.getElementById('loginCard').style.display = showRegister ? 'none' : 'block';
+    document.getElementById('registerCard').style.display = showRegister ? 'block' : 'none';
+    // 清空提示文字
+    document.getElementById('errorMsg').innerText = "";
+    document.getElementById('regErrorMsg').innerText = "";
+}
+// 前端无感实时模糊搜索
+function doTableSearch() {
+    const keyword = document.getElementById('tableSearch').value.toLowerCase().trim();
+    const table = document.querySelector('.table-wrap table');
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tr');
+    
+    // 从第二行开始遍历（第一行是表头 th）
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const cells = row.querySelectorAll('td');
+        let match = false;
+        
+        // 遍历当前行的每一个单元格，只要有一个单元格包含关键字，就保留该行
+        cells.forEach(cell => {
+            if (cell.textContent.toLowerCase().includes(keyword)) {
+                match = true;
+            }
+        });
+        
+        // 显隐控制
+        if (match || keyword === '') {
+            row.style.display = ''; // 恢复显示
+        } else {
+            row.style.display = 'none'; // 隐藏
+        }
+    }
+}
+// 处理自助注册表单提交
+async function handleRegister(event) {
+    event.preventDefault();
+    
+    const role = document.getElementById('regRole').value;
+    const userId = document.getElementById('regId').value.trim();
+    const name = document.getElementById('regName').value.trim();
+    const password = document.getElementById('regPass').value;
+    const errObj = document.getElementById('regErrorMsg');
+    
+    errObj.style.color = '#ef4444'; // 默认红色报错
+    errObj.innerText = "";
+
+    try {
+        const res = await fetch(`${API}/register`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ role, userId, name, password })
+        });
+        
+        const result = await res.json();
+
+        if (res.status === 200) {
+            errObj.style.color = '#10b981'; // 变成绿色成功提示
+            errObj.innerText = " 注册成功！3秒后自动返回登录界面...";
+            
+            // 自动清空注册表单
+            document.getElementById('regId').value = "";
+            document.getElementById('regName').value = "";
+            document.getElementById('regPass').value = "";
+
+            // 3秒后自动切回登录页
+            setTimeout(() => {
+                toggleLoginRegister(false);
+            }, 3000);
+        } else {
+            errObj.innerText = result.message || "注册失败，请检查输入";
+        }
+    } catch (error) {
+        errObj.innerText = "网络请求失败，请检查后端是否正常运行。";
+    }
+}
+
+    // 2. 菜单动态注入与网关控制器
+    function checkAuth() {
+        const loggedIn = localStorage.getItem('isLoggedIn');
+        if (loggedIn === 'true') {
+            document.getElementById('loginView').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'flex';
+            
+            const role = localStorage.getItem('userRole');
+            const menuBox = document.getElementById('menuBox');
+            
+            if (role === 'admin') {
+                menuBox.innerHTML = `
+                    <div class="nav-item active" onclick="switchTab('department', this)"> 院系管理</div>
+                    <div class="nav-item" onclick="switchTab('major', this)"> 专业管理</div>
+                    <div class="nav-item" onclick="switchTab('course', this)"> 课程管理</div>
+                    <div class="nav-item" onclick="switchTab('teacher', this)"> 教师管理</div>
+                    <div class="nav-item" onclick="switchTab('teacher_course', this)"> 教师排课</div>
+                    <div class="nav-item" onclick="switchTab('student', this)"> 学生管理</div>
+                    <div class="nav-item" onclick="switchTab('grade', this)"> 成绩与选课</div>
+                    <div class="nav-item" onclick="switchTab('stats', this)"> 统计与分析</div>`;
+                currentTab = 'department';
+            } else if (role === 'teacher') {
+                menuBox.innerHTML = `
+                    <div class="nav-item active" onclick="switchTab('my_course', this)"> 我的课表</div>
+                    <div class="nav-item" onclick="switchTab('my_students_grade', this)"> 成绩评定与录入</div>`;
+                currentTab = 'my_course';
+            } else if (role === 'student') {
+                menuBox.innerHTML = `
+                    <div class="nav-item active" onclick="switchTab('my_profile', this)"> 我的学籍档案</div>
+                    <div class="nav-item" onclick="switchTab('my_grade', this)"> 我的成绩单</div>`;
+                currentTab = 'my_profile';
+            }
+            loadData();
+        } else {
+            document.getElementById('loginView').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+        }
+    }
+
+    // 3. 行级数据抓取
+    async function loadNewRoleData() {
+        const uid = localStorage.getItem('userId');
+        try {
+            let url = `${API}/my/${currentTab.replace('my_','')}/${uid}`;
+            if (currentTab === 'my_students_grade') url = `${API}/my/students/grade/${uid}`;
+            
+            const res = await fetch(url);
+            if (res.ok) {
+                db[currentTab] = (await res.json()).data || [];
+                render(); 
+            }
+        } catch(e) { console.error("抓取隔离数据失败", e); }
+    }
+
+    function logout() {
+        localStorage.clear();
+        document.getElementById('loginUser').value = '';
+        document.getElementById('loginPass').value = '';
+        checkAuth();
+    }
+
+    window.onload = checkAuth;
+</script>
+</body>
+</html>
