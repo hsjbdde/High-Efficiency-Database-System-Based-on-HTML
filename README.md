@@ -26,16 +26,41 @@
 ### 1. 数据库初始化
 打开您的 MySQL 客户端（如 Navicat、Workbench 或命令行），连接成功后执行以下步骤：
 1. 创建数据库：
-   ```sql
-   CREATE DATABASE SchoolManagement DEFAULT CHARSET utf8mb4;
-选中该数据库，并将项目中的建表及初始数据 SQL 脚本（包含 Users, Student, Teacher, TeacherPasswords, StudentPasswords, Department, Major, Course, Grade, TeacherCourse 等表）完整执行，确保基础数据落盘。
+   运行SQL语句，
+CREATE DATABASE IF NOT EXISTS SchoolManagement DEFAULT CHARSET utf8mb4;
+USE SchoolManagement;
+
+-- 基础字典表
+CREATE TABLE Users ( username VARCHAR(50) PRIMARY KEY, password VARCHAR(50), role VARCHAR(20) );
+CREATE TABLE DegreeLevel ( level_id INT PRIMARY KEY, level_name VARCHAR(50) );
+CREATE TABLE Department ( dept_code VARCHAR(20) PRIMARY KEY, dept_name VARCHAR(100), office_location VARCHAR(100), phone VARCHAR(20) );
+CREATE TABLE Major ( major_id INT AUTO_INCREMENT PRIMARY KEY, major_name VARCHAR(100), dept_code VARCHAR(20) );
+CREATE TABLE Teacher ( teacher_id VARCHAR(20) PRIMARY KEY, name VARCHAR(50), dept_code VARCHAR(20) );
+CREATE TABLE Course ( course_id VARCHAR(20) PRIMARY KEY, course_name VARCHAR(100), description TEXT, credit_hours INT, credits INT, degree_level_id INT, offering_dept_code VARCHAR(20) );
+
+-- 核心业务表
+CREATE TABLE Student (
+    student_id VARCHAR(20) PRIMARY KEY, name VARCHAR(50), id_card VARCHAR(20), 
+    dormitory VARCHAR(50), home_address VARCHAR(200), phone VARCHAR(20), 
+    birth_date DATE, gender CHAR(1), grade_year INT, major_id INT, 
+    minor_dept_code VARCHAR(20) NULL, degree_level_id INT, earned_credits INT
+);
+CREATE TABLE Grade ( grade_id INT AUTO_INCREMENT PRIMARY KEY, student_id VARCHAR(20), course_id VARCHAR(20), score DECIMAL(5,2), semester VARCHAR(20) );
+CREATE TABLE TeacherCourse ( id INT AUTO_INCREMENT PRIMARY KEY, teacher_id VARCHAR(20), course_id VARCHAR(20) );
+
+-- 插入一条测试管理员账号
+INSERT INTO Users (username, password, role) VALUES ('admin', '123456', 'admin');
+=
 
 2. 后端依赖安装
 打开终端（或 Windows PowerShell），进入本项目的后端代码所在目录。
-# 执行以下命令初始化并安装核心依赖包：
-Bash# 初始化 Node 项目
-npm init -y
-# 安装 Express、跨域组件与 MySQL2 驱动
+
+执行以下命令初始化并安装核心依赖包：
+
+npm init -y;
+
+安装 Express、跨域组件与 MySQL2 驱动；
+
 npm install express cors mysql2
 
 3. 修改后端数据库配置
@@ -48,7 +73,7 @@ npm install express cors mysql2
     // ...
 };
 在终端运行以下命令启动 Node.js 服务器：
-Bash# 使用标准 node 启动
+
 node server.js
 
 当控制台打印出 🚀 多角色融合版后端已启动 (MySQL): http://localhost:3000 时，说明后端服务启动成功。请保持该窗口运行，切勿关闭。
@@ -57,7 +82,7 @@ node server.js
 
 ## 功能验证与测试用例
 系统内置了三套测试账号，覆盖不同的角色权限，供功能审查与验证：
-测试角色    登录账号   登录密码  核心验证菜单 / 隔离展现效果
+
 管理员      admin     123456    拥有完整 8 大模块管理权限、大屏统计。在“新增”模式下拥有必填主键 * 红星提示，且输入非标数据（如错误身份证、超出 0-100 的成绩）时可触发表单红字错误拦截提示。
 
 教师端      T1001     123456    仅能查看张教授自己的课表，并在【学生成绩评定】中仅能录入、修改其授课班级学生的成绩。
